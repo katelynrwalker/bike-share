@@ -29,8 +29,8 @@ with open('sac-bike-data.csv', mode='w+') as f:
 
 # once a minute, get the bikeshare data from the internet and continue appending in csv format to same file as above
 
-#while True:
-for k in [1,2,3,4]:
+while True:
+#for k in [1,2,3,4]:
     time.sleep(60)
 
     bike_data = single_query(link)
