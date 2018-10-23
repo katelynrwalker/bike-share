@@ -24,7 +24,7 @@ link = 'https://sc.jumpbikes.com/opendata/free_bike_status.json'  ## enter bikes
 # get the bikeshare data from the internet and write to a blank file in csv format
 
 bike_data = single_query(link)
-with open('s3a://katelyn-first-bucket/bike-data/sac-bike-data.csv', mode='w') as f:
+with open('sac-bike-data.csv', mode='w+') as f:
     f.write(bike_data.to_csv())
 
 # once a minute, get the bikeshare data from the internet and continue appending in csv format to same file as above
@@ -34,5 +34,5 @@ for k in [1,2,3,4]:
     time.sleep(60)
 
     bike_data = single_query(link)
-    with open('s3a://katelyn-first-bucket/bike-data/sac-bike-data.csv', mode='a') as f:
+    with open('sac-bike-data.csv', mode='a') as f:
         f.write(bike_data.to_csv(header=False))
