@@ -17,13 +17,16 @@ def single_query(link):
         contents = response.json()
         
         # convert the bikeshare data into a pandas df, include a column for the datetime of the current call
-        bike_data = pd.DataFrame(contents['data']['bikes'])
+        if 'station' in link:
+            bike_data = pd.DataFrame(contents['data']['stations'])
+        else:
+            bike_data = pd.DataFrame(contents['data']['bikes'])
         bike_data['datetime'] = contents['last_updated']
         bike_data['update_time'] = contents['ttl']
-        return bike_data, contents['ttl']
+        return bike_data
 
     
-def get_and_write_data(link, filename)
+def get_and_write_data(link, filename):
     '''
     Gets bikeshare data from link and appends it to a csv in filename.
     
@@ -32,31 +35,48 @@ def get_and_write_data(link, filename)
         filename: file to append the csv data to (string)
     
     Returns: 
-        sleep_time: time to wait between requests (int)
-        Also writes data to a csv
+        None (function writes data to a csv)
     '''
 
-        bike_data, sleep_time = single_query(link)
-        with open(filename, mode='a') as f:
-            f.write(bike_data.to_csv(header=False))
-        return sleep_time
+    bike_data = single_query(link)
+    with open(filename, mode='a') as f:
+        f.write(bike_data.to_csv(header=False))
 
     
 if __name__ == '__main__':
-    link = 'https://sc.jumpbikes.com/opendata/free_bike_status.json'
-    filename = 'sac-bike-data.csv'
+    links = [
+        'https://sc.jumpbikes.com/opendata/free_bike_status.json',
+        'https://sf.jumpbikes.com/opendata/free_bike_status.json',
+        'https://sac.jumpbikes.com/opendata/free_bike_status.json',
+        'https://sc.jumpbikes.com/opendata/station_status.json',
+        'https://sf.jumpbikes.com/opendata/station_status.json',
+        'https://sac.jumpbikes.com/opendata/station_status.json'
+        ]
+    
+    filenames = [
+        'sc-bike-data_1031.csv',
+        'sf-bike-data_1031.csv',
+        'sac-bike-data_1031.csv',
+        'sc-bike-stations_1031.csv',
+        'sf-bike-stations_1031.csv',
+        'sac-bike-stations_1031.csv'
+        ]
+    
 
     # first query: get the bikeshare data from the internet and write to a blank file in csv format
 
-    bike_data = single_query(link)
-    with open(filename, mode='w+') as f:
-        f.write(bike_data.to_csv())
-
+    for link, filename in zip(links, filenames):
+        bike_data = single_query(link)
+        with open(filename, mode='w+') as f:
+            f.write(bike_data.to_csv())
+            
     # run an infinite loop to get continued data from API
+    #Keyborad interrupt (ctrl+c to stop)
 
     while True:
-            sleep_time = get_and_write_data
-            time.sleep(sleep_time)
+        for link, filename in zip(links, filenames):
+            get_and_write_data(link, filename)
+        time.sleep(60)
 
 
 
