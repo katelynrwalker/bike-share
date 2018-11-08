@@ -1,0 +1,4 @@
+*.csv
+.ipynb_checkpoints/
+data_archive/
+Zoning/
