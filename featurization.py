@@ -65,7 +65,7 @@ def group_and_create_target(raw_df):
     
     #adjust times and filter out additional bikes that were actually idle but "moved" due to GPS error
     missing_idle = get_missed_idle_bikes(idle_df)
-    idle_df.utc_time_end[missing_idle] = idle_df.utc_time_end.shift(-1)
+    idle_df.loc[missing_idle, 'utc_time_end'] = idle_df.utc_time_end.shift(-1)
     drops = missing_idle.shift(1)
     drops.iloc[0] = False
     idle_df = idle_df[~drops]
@@ -116,9 +116,9 @@ def create_features_from_bike_info(idle_df):
     #creates labels for what happens to the bike after this idle period 
     #(equivilent to 'gets_pickedup_charged' and 'gets_pickedup_not_charged',
     #but these labels are useful for mapping)
-    geodf['next_action'] = 'rented'
-    geodf.loc[geodf['gets_pickedup_charged'], 'next_action'] = 'gets_pickedup_charged'
-    geodf.loc[geodf['gets_pickedup_not_charged'], 'next_action'] = 'gets_relocated'
+    idle_df['next_action'] = 'rented'
+    idle_df.loc[idle_df['gets_pickedup_charged'], 'next_action'] = 'gets_pickedup_charged'
+    idle_df.loc[idle_df['gets_pickedup_not_charged'], 'next_action'] = 'gets_relocated'
     
     return idle_df
 
@@ -133,7 +133,7 @@ def add_geolocation(idle_df):
     '''
     
     idle_df['geolocation'] = idle_df.apply(lambda z: Point(z.lon, z.lat), axis=1)
-    geodf = geopandas.GeoDataFrame(df, geometry='geolocation')
+    geodf = geopandas.GeoDataFrame(idle_df, geometry='geolocation')
     geodf.crs = {'init': 'epsg:4326'}
     
     return geodf
