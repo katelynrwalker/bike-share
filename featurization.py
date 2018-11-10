@@ -1,4 +1,6 @@
 import pandas as pd
+import geopandas
+from shapely.geometry import Point
 
 def import_and_clean_data(filename):
     '''
@@ -29,7 +31,8 @@ def group_and_create_target(raw_df):
     '''
     Takes a cleaned dataframe with unique entries for every available bike at every minute.
     Groups those entries by bike and location,
-    then returns a df with entries each bike as it sits idle at one location.
+    then returns a df with entries for each bike as it sits idle at one location.
+    Output includes the target: idle_time
     
     Input: pandas dataframe
     Output: pandas dataframe, with consolidated information for each idle event
@@ -68,6 +71,34 @@ def group_and_create_target(raw_df):
     idle_df = idle_df[~drops]
     idle_df['idle_time'] = idle_df['utc_time_end'] - idle_df['utc_time_start']
     
+    return idle_df
+    
+
+def get_missed_idle_bikes(idle_df):
+    '''
+    Takes a dataframe with entries for each idle bike, and looks for potentially missed
+    idle events, where GPS errors caused bikes to move without actually being rented.
+    
+    Input: pandas df
+    Output: pandas Series (booleans)
+    '''
+    same_bike = idle_df.bike_id == idle_df.bike_id.shift(-1)
+    same_charge = idle_df.batt_end == idle_df.batt_start.shift(-1)
+    same_loc = (idle_df.lat.round(3) == idle_df.lat.shift(-1).round(3)) & (idle_df.lon.round(3) == idle_df.lon.shift(-1).round(3))
+    same_time = (idle_df.utc_time_start.shift(-1) - idle_df.utc_time_end).dt.seconds < 130
+    
+    return (same_bike & same_charge & same_loc & same_time)
+
+
+def create_features_from_bike_info(idle_df):
+    '''
+    Takes a dataframe consolidated by bike and location (idle events)
+    then returns a df with additional features based on charge levels and location
+    
+    Input: pandas dataframe (consolidated into idle events)
+    Output: pandas dataframe, with additional feature columns
+    '''
+    
     #flags bikes that were charged at the end of this idle period
     #uses a threshold of 5% charge increase to avoid random battery fluctuations
     charge_change = -idle_df.batt_start.diff(periods=-1)
@@ -82,20 +113,39 @@ def group_and_create_target(raw_df):
     #flags bikes that were charged during this idle period
     idle_df['in_charger'] = (idle_df.batt_end - idle_df.batt_start) > 5
     
+    #creates labels for what happens to the bike after this idle period 
+    #(equivilent to 'gets_pickedup_charged' and 'gets_pickedup_not_charged',
+    #but these labels are useful for mapping)
+    geodf['next_action'] = 'rented'
+    geodf.loc[geodf['gets_pickedup_charged'], 'next_action'] = 'gets_pickedup_charged'
+    geodf.loc[geodf['gets_pickedup_not_charged'], 'next_action'] = 'gets_relocated'
+    
     return idle_df
-    
 
-def get_missed_idle_bikes(idle_df):
+
+def add_geolocation(idle_df):
     '''
-    Takes a dataframe with entries for each idle bike, and looks for potentially missed
-    idle events, where GPS errors caused biked to move without actually being rented.
+    Takes a dataframe consolidated by bike and location (idle events)
+    then returns a geopandas dataframe with geometry for each point.
     
-    Input: pandas df
-    Output: pandas Series (booleans)
+    Input: pandas dataframe (consolidated into idle events)
+    Output: geopandas dataframe, with geometry column called 'geolocation'
     '''
-    same_bike = idle_df.bike_id == idle_df.bike_id.shift(-1)
-    same_charge = idle_df.batt_end == idle_df.batt_start.shift(-1)
-    same_loc = (idle_df.lat.round(3) == idle_df.lat.shift(-1).round(3)) & (idle_df.lon.round(3) == idle_df.lon.shift(-1).round(3))
-    same_time = (idle_df.utc_time_start.shift(-1) - idle_df.utc_time_end).dt.seconds < 130
     
-    return (same_bike & same_charge & same_loc & same_time)
+    idle_df['geolocation'] = idle_df.apply(lambda z: Point(z.lon, z.lat), axis=1)
+    geodf = geopandas.GeoDataFrame(df, geometry='geolocation')
+    geodf.crs = {'init': 'epsg:4326'}
+    
+    return geodf
+
+
+def all_featurization(filename):
+    '''
+    Master function to run all of the above in one command
+    '''
+    raw_df = import_and_clean_data(filename)
+    idle_df = group_and_create_target(raw_df)
+    idle_df = create_features_from_bike_info(idle_df)
+    geodf = add_geolocation(idle_df)
+    
+    return geodf
