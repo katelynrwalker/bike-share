@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def map_bikes(ax, geodf, color_by, label_by, zoom):
+def map_bikes(ax, geodf, color_by, label_by=None, zoom=15):
     '''
     Plot information from a geodataframe on a map.
     
@@ -20,7 +20,8 @@ def map_bikes(ax, geodf, color_by, label_by, zoom):
     ax.imshow(img, extent=ext)
     new_crs_bike = geodf.to_crs(epsg=3857)
     new_crs_bike.plot(ax=ax, column=color_by, cmap='coolwarm')
-    new_crs_bike.apply(lambda x: ax.annotate(s=x[label_by], xy=x.geolocation.centroid.coords[0], ha='right', size=14),axis=1)
+    if label_by != None:
+        new_crs_bike.apply(lambda x: ax.annotate(s=x[label_by], xy=x.geolocation.centroid.coords[0], ha='right', size=14),axis=1)
     ax.axis('off')
     
     return ax

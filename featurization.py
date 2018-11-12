@@ -139,6 +139,9 @@ def add_geolocation(idle_df):
     return geodf
 
 
+
+
+
 def all_featurization(filename):
     '''
     Master function to run all of the above in one command
