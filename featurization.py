@@ -1,6 +1,7 @@
 import pandas as pd
 import geopandas
 from shapely.geometry import Point
+import datetime
 
 def import_and_clean_data(filename):
     '''
@@ -76,6 +77,13 @@ def group_and_create_target(raw_df):
     idle_df = idle_df[~drops]
     idle_df['idle_time'] = idle_df['utc_time_end'] - idle_df['utc_time_start']
 
+    #sometimes a mixup in the first/last times causes an idle_time to be negative.
+    #Drop these, but print how many are dropped in case it's a lot.
+    print("Dropping {} entries where end time was before start time".format(
+                sum(idle_df.idle_time < datetime.timedelta())
+                ))
+    idle_df = idle_df[idle_df.idle_time > datetime.timedelta()]
+
     return idle_df
 
 
@@ -101,7 +109,7 @@ def get_missed_idle_bikes(idle_df):
 def create_features_from_bike_info(idle_df):
     '''
     Takes a dataframe consolidated by bike and location (idle events)
-    then returns a df with additional features based on charge levels and location
+    then returns a df with additional information based on charge levels and location
 
     Input: pandas dataframe (consolidated into idle events)
     Output: pandas dataframe, with additional feature columns
