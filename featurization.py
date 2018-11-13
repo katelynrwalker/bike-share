@@ -60,8 +60,9 @@ def group_and_create_target(raw_df):
     #add a column for local time
     idle_df['local_time_start'] = idle_df['utc_time_start'].dt.tz_convert('America/Los_Angeles')
 
-    #add a column for day of week
+    #add columns for day of week and time of day
     idle_df['day_of_week'] = idle_df['local_time_start'].dt.dayofweek
+    idle_df['time_of_day'] = idle_df['local_time_start'].dt.hour
 
     #sort by time
     idle_df.sort_values(['bike_id', 'utc_time_start'], axis=0, inplace=True)
@@ -170,6 +171,42 @@ def add_zoning(geodf, zoning_file):
     return geodf_plus
 
 
+def add_census(geodf):
+
+
+
+    # load census data into dataframes. For now the files are hardcoded because
+    # they're statewide data, but they could be generalized if ever needed.
+    blockgroupdf = geopandas.read_file('ACS_2016_5YR_BG_06_CALIFORNIA.gdb',
+                                        driver='FileGDB',
+                                        layer='ACS_2016_5YR_BG_06_CALIFORNIA')
+    blockgroup_pop = geopandas.read_file('ACS_2016_5YR_BG_06_CALIFORNIA.gdb',
+                                        driver='FileGDB',
+                                        layer='X00_COUNTS')
+    blockgroup_pop.rename({'GEOID':'GEOID_Data'}, axis=1, inplace=True)
+
+    #geopandas is not reading the crs from census files, and census metadata
+    #does not include information on the crs. This is a workaround using a file
+    #with a known crs.
+    blockgroup_shape = geopandas.read_file('tl_2016_06_bg')
+    blockgroup_shape.crs = {'init':'epsg:4269'}
+    bg = blockgroup_shape.merge(blockgroupdf[['GEOID', 'Shape_Area', 'GEOID_Data']], on="GEOID")
+
+    bg = bg.merge(blockgroup_pop, on='GEOID_Data')
+
+    bg['pop_density'] = bg['B00001e1']/bg['Shape_Area']
+    bg['people_per_house'] = bg['B00001e1']/bg['B00002e1']
+
+    bg_features = bg[['GEOID_Data', 'geometry_x', 'pop_density', 'people_per_house']]
+    bg_features = geopandas.GeoDataFrame(bg_features, geometry = 'geometry_x', crs={'init': 'epsg:4269'})
+    bg_features = bg_features.to_crs(epsg='4326')
+
+    geodf = geopandas.sjoin(geodf, bg_features, how="left")
+    geodf.drop('index_right', axis=1, inplace=True)
+
+    return geodf
+
+
 def all_featurization(filename):
     '''
     Master function to run all of the above in one command
@@ -178,5 +215,7 @@ def all_featurization(filename):
     idle_df = group_and_create_target(raw_df)
     idle_df = create_features_from_bike_info(idle_df)
     geodf = add_geolocation(idle_df)
+    geodf = add_zoning(geodf, 'Zoning')
+    geodf = add_census(geodf)
 
     return geodf
