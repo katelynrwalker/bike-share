@@ -58,12 +58,22 @@ def group_and_create_target(raw_df):
         m_df = m.reset_index(name = name)
         idle_df = pd.merge(idle_df, m_df)
 
-    #add a column for local time
+    #throw out all datapoints where battery level is below 40%. These bikes get
+    #flagged for recharging, so their idle behavior is going to be totally different.
+    idle_df = idle_df[idle_df.batt_start > 39]
+
+    #create a numerical column for idle time as well, because timedelta objects
+    #don't work in some pandas functions, like groupby
+    idle_df['idle_hours'] = idle_df['idle_time'].dt.seconds/360
+
+    #add columns for local time
     idle_df['local_time_start'] = idle_df['utc_time_start'].dt.tz_convert('America/Los_Angeles')
+    idle_df['local_time_end'] = idle_df['utc_time_end'].dt.tz_convert('America/Los_Angeles')
 
     #add columns for day of week and time of day
     idle_df['day_of_week'] = idle_df['local_time_start'].dt.dayofweek
-    idle_df['time_of_day'] = idle_df['local_time_start'].dt.hour
+    idle_df['time_of_day_start'] = idle_df['local_time_start'].dt.hour
+    idle_df['time_of_day_end'] = idle_df['local_time_end'].dt.hour
 
     #sort by time
     idle_df.sort_values(['bike_id', 'utc_time_start'], axis=0, inplace=True)
@@ -161,6 +171,9 @@ def add_zoning(geodf, zoning_file):
     Spatial joins zoning to bike idle events so that each event now has a zone
     associated with it. Returns a geopandas dataframe.
 
+    Inner join clips the bike data to the city limits, which is approximately the
+    extent of the JUMP service area.
+
     Note right now this is built to work with Santa Cruz zoning shapefile. Other
     cities likely have different fields/columns and function will need adjustment.
 
@@ -172,7 +185,7 @@ def add_zoning(geodf, zoning_file):
     zoningdf = zoningdf.to_crs(epsg=4326)
     geodf = geodf.to_crs(epsg=4326)
     zoningdf.drop(['OBJECTID', 'SHAPE_LENG', 'SHAPEarea', 'SHAPElen'], axis = 1, inplace=True)
-    geodf_plus = geopandas.sjoin(geodf, zoningdf, how="left", op='intersects')
+    geodf_plus = geopandas.sjoin(geodf, zoningdf, how="inner", op='intersects')
     geodf_plus.fillna(value = 'out', inplace=True)
     geodf_plus.drop('index_right', axis=1, inplace=True)
 
