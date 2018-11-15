@@ -64,7 +64,7 @@ def group_and_create_target(raw_df):
 
     #create a numerical column for idle time as well, because timedelta objects
     #don't work in some pandas functions, like groupby
-    idle_df['idle_hours'] = idle_df['idle_time'].dt.seconds/360
+    idle_df['idle_hours'] = idle_df['idle_time'].dt.seconds/3600
 
     #add columns for local time
     idle_df['local_time_start'] = idle_df['utc_time_start'].dt.tz_convert('America/Los_Angeles')
