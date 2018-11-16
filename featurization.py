@@ -7,6 +7,7 @@ def import_and_clean_data(filename):
     '''
     Imports a csv file,
     converts it to a pandas dataframe,
+    drops duplicates (when api didn't update between requests),
     drops unneeded columns,
     converts battery level to an int,
     creates utc time columns with datetime objects,
@@ -16,6 +17,8 @@ def import_and_clean_data(filename):
     Output: pandas dataframe
     '''
     raw = pd.read_csv("all-sc-bike-data-1101.csv")
+
+    raw.drop_duplicates(inplace = True)
 
     raw.drop(['is_disabled', 'is_reserved', 'update_time', 'name'], axis = 1, inplace = True)
     raw['jump_ebike_battery_level'] = raw['jump_ebike_battery_level'].str.strip('%').astype(int)
@@ -58,10 +61,6 @@ def group_and_create_target(raw_df):
         m_df = m.reset_index(name = name)
         idle_df = pd.merge(idle_df, m_df)
 
-    #throw out all datapoints where battery level is below 40%. These bikes get
-    #flagged for recharging, so their idle behavior is going to be totally different.
-    idle_df = idle_df[idle_df.batt_start > 39]
-
     #create a numerical column for idle time as well, because timedelta objects
     #don't work in some pandas functions, like groupby
     idle_df['idle_hours'] = idle_df['idle_time'].dt.seconds/3600
@@ -75,12 +74,45 @@ def group_and_create_target(raw_df):
     idle_df['time_of_day_start'] = idle_df['local_time_start'].dt.hour
     idle_df['time_of_day_end'] = idle_df['local_time_end'].dt.hour
 
-    #sort by time
+    #sort by time - some of the functions below use .shift to compare rows and
+    #depend on the bikes being grouped by id and in sequential order.
     idle_df.sort_values(['bike_id', 'utc_time_start'], axis=0, inplace=True)
+
+    return idle_df
+
+def drop_recharges(idle_df):
+    '''
+    #throw out all datapoints where battery level is below 40%. These bikes get
+    #flagged for recharging, so their idle behavior is going to be totally different.
+
+    Input: pandas df
+    Output: pandas df
+    '''
+    idle_df = idle_df[idle_df.batt_start > 39]
+    return idle_df
+
+
+def consolidate_missed_idle_bikes(idle_df):
+    '''
+    Takes a dataframe with entries for each idle bike, and looks for potentially
+    missed idle events, where GPS errors or minor relocation caused bikes to move
+    without actually being rented. Detects sequential idle events where charge
+    level didn't change, new location was within ~300 ft, and time between idle
+    events was less than 2:10 minutes. Consolidates these multiple idle events into
+    a single idle event.
+
+    Input: pandas df
+    Output: pandas df
+    '''
+
+    same_bike = idle_df.bike_id == idle_df.bike_id.shift(-1)
+    same_charge = idle_df.batt_end == idle_df.batt_start.shift(-1)
+    same_loc = (idle_df.lat.round(3) == idle_df.lat.shift(-1).round(3)) & (idle_df.lon.round(3) == idle_df.lon.shift(-1).round(3))
+    same_time = (idle_df.utc_time_start.shift(-1) - idle_df.utc_time_end).dt.seconds < 130
+    missing_idle = (same_bike & same_charge & same_loc & same_time)
 
     #adjust times and filter out additional bikes that were actually idle but "moved" due
     #to GPS error or minor relocation
-    missing_idle = get_missed_idle_bikes(idle_df)
     idle_df.loc[missing_idle, 'utc_time_end'] = idle_df.utc_time_end.shift(-1)
     drops = missing_idle.shift(1)
     drops.iloc[0] = False
@@ -97,25 +129,6 @@ def group_and_create_target(raw_df):
     return idle_df
 
 
-def get_missed_idle_bikes(idle_df):
-    '''
-    Takes a dataframe with entries for each idle bike, and looks for potentially
-    missed idle events, where GPS errors or minor relocation caused bikes to move
-    without actually being rented. Detects sequential idle events where charge
-    level didn't change, new location was within ~300 ft, and time between idle
-    events was less than 2:10 minutes.
-
-    Input: pandas df
-    Output: pandas Series (booleans)
-    '''
-    same_bike = idle_df.bike_id == idle_df.bike_id.shift(-1)
-    same_charge = idle_df.batt_end == idle_df.batt_start.shift(-1)
-    same_loc = (idle_df.lat.round(3) == idle_df.lat.shift(-1).round(3)) & (idle_df.lon.round(3) == idle_df.lon.shift(-1).round(3))
-    same_time = (idle_df.utc_time_start.shift(-1) - idle_df.utc_time_end).dt.seconds < 130
-
-    return (same_bike & same_charge & same_loc & same_time)
-
-
 def create_features_from_bike_info(idle_df):
     '''
     Takes a dataframe consolidated by bike and location (idle events)
@@ -125,16 +138,25 @@ def create_features_from_bike_info(idle_df):
     Output: pandas dataframe, with additional feature columns
     '''
 
+    same_bike_next = idle_df.bike_id == idle_df.bike_id.shift(-1)
+    same_bike_prev = idle_df.bike_id == idle_df.bike_id.shift(1)
+
     #flags bikes that were charged at the end of this idle period
     #uses a threshold of 5% charge increase to avoid random battery fluctuations
     charge_change = -idle_df.batt_start.diff(periods=-1)
-    idle_df['gets_pickedup_charged'] = charge_change > 5
+    gets_charged = charge_change > 5
+    idle_df['gets_pickedup_charged'] = (same_bike_next & gets_charged)
+
+    #flags bikes that were charged at the end of this idle period
+    #uses a threshold of 5% charge increase to avoid random battery fluctuations
+    charge_change = idle_df.batt_start.diff(periods=1)
+    got_charged = charge_change > 5
+    idle_df['just_got_charged'] = (same_bike_prev & got_charged)
 
     #flags bikes that were moved but not charged
     #recall bikes with same charge and roughly same location have already been filtered out
-    same_bike = idle_df.bike_id == idle_df.bike_id.shift(-1)
     same_charge = idle_df.batt_end == idle_df.batt_start.shift(-1)
-    idle_df['gets_pickedup_not_charged'] = (same_bike & same_charge)
+    idle_df['gets_pickedup_not_charged'] = (same_bike_next & same_charge)
 
     #flags bikes that were charged during this idle period
     idle_df['in_charger'] = (idle_df.batt_end - idle_df.batt_start) > 5
@@ -192,7 +214,7 @@ def add_zoning(geodf, zoning_file):
     return geodf_plus
 
 
-def add_census(geodf):
+def add_census_blockgroups(geodf):
 
 
 
@@ -234,9 +256,11 @@ def all_featurization(filename):
     '''
     raw_df = import_and_clean_data(filename)
     idle_df = group_and_create_target(raw_df)
+    idle_df = drop_recharges(idle_df)
+    idle_df = consolidate_missed_idle_bikes(idle_df)
     idle_df = create_features_from_bike_info(idle_df)
     geodf = add_geolocation(idle_df)
     geodf = add_zoning(geodf, 'Zoning')
-    geodf = add_census(geodf)
+    geodf = add_census_blockgroups(geodf)
 
     return geodf
