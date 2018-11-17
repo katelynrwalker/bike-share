@@ -204,8 +204,16 @@ def add_zoning(geodf, zoning_file):
     '''
 
     zoningdf = geopandas.read_file(zoning_file)
-    zoningdf = zoningdf.to_crs(epsg=4326)
-    geodf = geodf.to_crs(epsg=4326)
+    geodf = geodf.to_crs(crs={'proj': 'lcc',
+                            'lat_1': 37.06666666666667,
+                            'lat_2': 38.43333333333333,
+                            'lat_0': 36.5,
+                            'lon_0': -120.5,
+                            'x_0': 2000000,
+                            'y_0': 500000.0000000002,
+                            'datum': 'NAD83',
+                            'units': 'us-ft',
+                            'no_defs': True})
     zoningdf.drop(['OBJECTID', 'SHAPE_LENG', 'SHAPEarea', 'SHAPElen'], axis = 1, inplace=True)
     geodf_plus = geopandas.sjoin(geodf, zoningdf, how="inner", op='intersects')
     geodf_plus.fillna(value = 'out', inplace=True)
@@ -215,11 +223,19 @@ def add_zoning(geodf, zoning_file):
 
 
 def add_census_blockgroups(geodf):
+    '''
+    Takes a geodataframe of bike idle events, and spatial joins that to census
+    blockgroup shapefiles so that each event has census population associated
+    with it. Returns a geopandas dataframe.
 
+    For now the census files are hardcoded because they're statewide data, but
+    they could be generalized if ever needed.
 
+    Input: geopandas dataframe (bike idle events, with geometry column)
+    Output: geopandas dataframe, with census (population) information for each idle event
+    '''
 
-    # load census data into dataframes. For now the files are hardcoded because
-    # they're statewide data, but they could be generalized if ever needed.
+    # load census data into dataframes.
     blockgroupdf = geopandas.read_file('ACS_2016_5YR_BG_06_CALIFORNIA.gdb',
                                         driver='FileGDB',
                                         layer='ACS_2016_5YR_BG_06_CALIFORNIA')
@@ -237,13 +253,26 @@ def add_census_blockgroups(geodf):
 
     bg = bg.merge(blockgroup_pop, on='GEOID_Data')
 
+    # calculate features of each blockgroup
     bg['pop_density'] = bg['B00001e1']/bg['Shape_Area']
     bg['people_per_house'] = bg['B00001e1']/bg['B00002e1']
 
+    #just pull out columns with features of interest and convert to the State Plane California crs
     bg_features = bg[['GEOID_Data', 'geometry_x', 'pop_density', 'people_per_house']]
     bg_features = geopandas.GeoDataFrame(bg_features, geometry = 'geometry_x', crs={'init': 'epsg:4269'})
-    bg_features = bg_features.to_crs(epsg='4326')
+    bg_features = bg_features.to_crs(crs={'proj': 'lcc',
+                            'lat_1': 37.06666666666667,
+                            'lat_2': 38.43333333333333,
+                            'lat_0': 36.5,
+                            'lon_0': -120.5,
+                            'x_0': 2000000,
+                            'y_0': 500000.0000000002,
+                            'datum': 'NAD83',
+                            'units': 'us-ft',
+                            'no_defs': True})
 
+    # spatial join blockgroup data to bike data (so each bike point gets the attributes
+    # of the blockgroup it's in)
     geodf = geopandas.sjoin(geodf, bg_features, how="left")
     geodf.drop('index_right', axis=1, inplace=True)
 

@@ -16,7 +16,10 @@ def map_bikes(ax, geodf, label_by=None, zoom=15, **kwargs):
     label_by: string, column name from geodf to use as labels/annotations
     zoom: int, zoom level for basemap
     '''
-    w, s, e, n = geodf.total_bounds
+
+
+
+    w, s, e, n = geodf.to_crs(epsg=4326).total_bounds
     try:
         img, ext = ctx.bounds2img(w, s, e, n, zoom, ll=True)
         ax.imshow(img, extent=ext)
@@ -27,7 +30,7 @@ def map_bikes(ax, geodf, label_by=None, zoom=15, **kwargs):
     new_crs_bike.plot(ax=ax, **kwargs)
     if label_by != None:
         new_crs_bike.apply(lambda x: ax.annotate(s=x[label_by], xy=x.geolocation.centroid.coords[0], ha='right', size=14, alpha=0.5),axis=1)
-    ax.axis('off')
+    #ax.axis('off')
 
     return ax
 
