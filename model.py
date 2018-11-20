@@ -1,5 +1,6 @@
 import featurization
 
+import pandas as pd
 import geopandas
 import numpy as np
 import scipy.stats as scs
@@ -35,7 +36,7 @@ def get_nearest_neighbor_bikes(one_bike, geodf):
     Finds all bikes within 1000ft on same day of week and hour of day.
 
     Inputs: bike of interest, geopandas dataframe
-    Output: geopandas dataframe
+    Output: list of the nearest neighbor bikes
     '''
 
     one_point = one_bike['geolocation']
@@ -44,7 +45,7 @@ def get_nearest_neighbor_bikes(one_bike, geodf):
     points = points_in_buff[(points_in_buff['day_of_week'] == one_bike['day_of_week']) &
             (points_in_buff['time_of_day_start'] == one_bike['time_of_day_start'])]
 
-    return list(points.bike_id.values)
+    return list(points.index.values)
 
 
 def bayesian_update(prior_beta_dist, hyp_betas, datapoints):
@@ -52,7 +53,8 @@ def bayesian_update(prior_beta_dist, hyp_betas, datapoints):
     Updates a prior distribution of eponential beta values based on more
     specific bike idle time observations.
 
-    Inputs: prior_beta_dist(array-like), hyp_betas(array-like), datapoints(dataframe)
+    Inputs: prior_beta_dist(array-like), hyp_betas(array-like),
+            datapoints(dataframe of nearest neighbor bikes to use for Bayesian update)
     Output: posterior_beta_dist(numpy array)
     '''
 
@@ -69,3 +71,25 @@ def bayesian_update(prior_beta_dist, hyp_betas, datapoints):
     posterior_beta_dist = np.array(posterior_beta_dist)
     posterior_beta_dist /= posterior_beta_dist.sum()
     return posterior_beta_dist
+
+
+def apply_bayesian_updates(one_bike, geodf, beta_by_bg):
+    points = get_nearest_neighbor_bikes(one_bike, geodf)
+
+    beta = beta_by_bg[one_bike['GEOID_Data']]
+    prior_beta_dist = scs.norm(beta, 2)
+    hyp_betas = np.linspace(0.001, 8, 100)
+
+    post_beta_dist = bayesian_update(prior_beta_dist, hyp_betas, geodf.loc[points])
+    beta = hyp_betas[np.argmax(post_beta_dist)]
+
+    return hyp_betas, post_beta_dist, beta
+
+
+def get_updated_distributions(geodf_train, geodf_new):
+    beta_by_bg = get_beta_for_blockgroups(geodf_train)
+    beta_dists = geodf_new.apply(apply_bayesian_updates, axis=1, args=(geodf_train, beta_by_bg))
+    betas = pd.DataFrame(beta_dists.tolist(), index=beta_dists.index)
+    betas.columns=['hyp_betas', 'beta_dist', 'most_likely_beta']
+
+    return betas
