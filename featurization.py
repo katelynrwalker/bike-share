@@ -61,19 +61,6 @@ def group_and_create_target(raw_df):
         m_df = m.reset_index(name = name)
         idle_df = pd.merge(idle_df, m_df)
 
-    #create a numerical column for idle time as well, because timedelta objects
-    #don't work in some pandas functions, like groupby
-    idle_df['idle_hours'] = idle_df['idle_time'].dt.total_seconds()/3600
-
-    #add columns for local time
-    idle_df['local_time_start'] = idle_df['utc_time_start'].dt.tz_convert('America/Los_Angeles')
-    idle_df['local_time_end'] = idle_df['utc_time_end'].dt.tz_convert('America/Los_Angeles')
-
-    #add columns for day of week and time of day
-    idle_df['day_of_week'] = idle_df['local_time_start'].dt.dayofweek
-    idle_df['time_of_day_start'] = idle_df['local_time_start'].dt.hour
-    idle_df['time_of_day_end'] = idle_df['local_time_end'].dt.hour
-
     #sort by time - some of the functions below use .shift to compare rows and
     #depend on the bikes being grouped by id and in sequential order.
     idle_df.sort_values(['bike_id', 'utc_time_start'], axis=0, inplace=True)
@@ -82,8 +69,8 @@ def group_and_create_target(raw_df):
 
 def drop_recharges(idle_df):
     '''
-    #throw out all datapoints where battery level is below 40%. These bikes get
-    #flagged for recharging, so their idle behavior is going to be totally different.
+    Throws out all datapoints where battery level is below 40%. These bikes get
+    flagged for recharging, so their idle behavior is going to be totally different.
 
     Input: pandas df
     Output: pandas df
@@ -129,7 +116,32 @@ def consolidate_missed_idle_bikes(idle_df):
     return idle_df
 
 
-def create_features_from_bike_info(idle_df):
+def add_more_time_and_date_info(idle_df):
+    '''
+    Takes a dataframe consolidated by bike and location (idle events)
+    then returns a df with additional information based on datetime info.
+
+    Input: pandas dataframe (consolidated into idle events)
+    Output: pandas dataframe, with additional feature columns
+    '''
+
+    #create a numerical column for idle time as well, because timedelta objects
+    #don't work in some pandas functions, like groupby
+    idle_df['idle_hours'] = idle_df['idle_time'].dt.total_seconds()/3600
+
+    #add columns for local time
+    idle_df['local_time_start'] = idle_df['utc_time_start'].dt.tz_convert('America/Los_Angeles')
+    idle_df['local_time_end'] = idle_df['utc_time_end'].dt.tz_convert('America/Los_Angeles')
+
+    #add columns for day of week and time of day
+    idle_df['day_of_week'] = idle_df['local_time_start'].dt.dayofweek
+    idle_df['time_of_day_start'] = idle_df['local_time_start'].dt.hour
+    idle_df['time_of_day_end'] = idle_df['local_time_end'].dt.hour
+
+    return idle_df
+
+
+def create_flags_from_bike_info(idle_df):
     '''
     Takes a dataframe consolidated by bike and location (idle events)
     then returns a df with additional information based on charge levels and location
@@ -287,7 +299,26 @@ def all_featurization(filename):
     idle_df = group_and_create_target(raw_df)
     idle_df = drop_recharges(idle_df)
     idle_df = consolidate_missed_idle_bikes(idle_df)
-    idle_df = create_features_from_bike_info(idle_df)
+    idle_df = add_more_time_and_date_info(idle_df)
+    idle_df = create_flags_from_bike_info(idle_df)
+    geodf = add_geolocation(idle_df)
+    geodf = add_zoning(geodf, 'Zoning')
+    geodf = add_census_blockgroups(geodf)
+
+    return geodf
+
+
+def all_featurization_keep_recharges(filename):
+    '''
+    Master function to run all of the above in one command, without dropping
+    bikes with low battery that are likely to be picked up for recharge (needed
+    for finding the rate of bike arrivals)
+    '''
+    raw_df = import_and_clean_data(filename)
+    idle_df = group_and_create_target(raw_df)
+    idle_df = consolidate_missed_idle_bikes(idle_df)
+    idle_df = add_more_time_and_date_info(idle_df)
+    idle_df = create_flags_from_bike_info(idle_df)
     geodf = add_geolocation(idle_df)
     geodf = add_zoning(geodf, 'Zoning')
     geodf = add_census_blockgroups(geodf)
