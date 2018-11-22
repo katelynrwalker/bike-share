@@ -60,5 +60,6 @@ def get_mean_interarrival_time(location, datetime, geodf, radius):
             interarrival_times.append(arrival_times[x+1]-arrival_times[x])
     mean_interarrival_time = np.array(interarrival_times).mean()
     if larger_search:
-        mean_interarrival_time 
+        #larger search doubled the radius and quadrupled the search area
+        mean_interarrival_time *= 4
     return mean_interarrival_time
