@@ -16,7 +16,7 @@ def import_and_clean_data(filename):
     Input: name of file, in csv format
     Output: pandas dataframe
     '''
-    raw = pd.read_csv("all-sc-bike-data-1101.csv")
+    raw = pd.read_csv(filename)
 
     raw.drop_duplicates(inplace = True)
 
