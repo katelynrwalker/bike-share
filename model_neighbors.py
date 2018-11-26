@@ -5,6 +5,20 @@ import geopandas
 import numpy as np
 import scipy.stats as scs
 
+def get_knn_departure_time(knn_model, X_now):
+    '''
+    Finds the average departure rate for an area based on a nearest neighbors model
+
+    Inputs: knn_model: fit model object
+            X_now: array-like, scaled
+                    with [lat, lon, time_of_day (0-23), day_of_week (0-6)]
+
+    Output: predicted mean idle_time (aka time until departure) for bikes at this
+            time and location, in hours.
+    '''
+    y_pred = knn_model.predict(X_test)
+    return y_pred
+
 
 def get_nearest_neighbor_bikes(location, datetime, geodf, radius):
     '''
@@ -63,3 +77,32 @@ def get_mean_interarrival_time(location, datetime, geodf, radius):
         #larger search doubled the radius and quadrupled the search area
         mean_interarrival_time *= 4
     return mean_interarrival_time
+
+
+def how_many_current_neighbors(location, current_geodf, radius):
+    '''
+    Finds all bikes within a given radius right now.
+
+    Inputs: location of interest(shapely Point),
+            current_geodf (current pull from the API, run through the featurization pipeline),
+            radius to search in (feet)
+    Output: number of current neighbor bikes
+    '''
+
+    buff = geopandas.GeoSeries(location).buffer(radius)
+    points_in_buff = geodf[geodf.intersects(buff.iloc[0])]
+    return len(points_in_buff)
+
+
+def predict_flow(location, radius, prediction_time):
+
+
+    num_bikes_start = how_many_current_neighbors(location, current_geodf, radius)
+    departure_rate = 1/get_knn_departure_time(knn_model, X_now) #need to scale X_now
+    arrival_rate = 1/get_mean_interarrival_time(location, datetime, geodf, radius)
+
+    arriving_bikes = arrival_rate * prediction_time
+    departing_bikes = departure_rate * prediction_time
+    num_bikes_end = num_bikes_start + arriving_bikes - departing_bikes
+
+    return num_bikes_end
