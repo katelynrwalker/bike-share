@@ -4,6 +4,20 @@ import pandas as pd
 import geopandas
 import numpy as np
 import scipy.stats as scs
+import pickle
+
+def find_bikes_in_an_area(location, geodf, radius):
+    '''
+    Finds all bikes within a given radius in a geodataframe of interest.
+
+    Inputs: location of interest(shapely Point),
+            geodf (geodataframe, run through the featurization pipeline),
+            radius to search in (feet)
+    Output: dataframe of bikes in the radius
+    '''
+    buff = geopandas.GeoSeries(location).buffer(radius)
+    return geodf[geodf.intersects(buff.iloc[0])]
+
 
 def get_knn_departure_time(knn_model, X_now):
     '''
@@ -31,8 +45,7 @@ def get_nearest_neighbor_bikes(location, datetime, geodf, radius):
     Output: list of the nearest neighbor bikes (indices of the dataframe)
     '''
 
-    buff = geopandas.GeoSeries(location).buffer(radius)
-    points_in_buff = geodf[geodf.intersects(buff.iloc[0])]
+    points_in_buff = find_bikes_in_an_area(location, geodf, radius)
     neighbor_bikes = points_in_buff[(points_in_buff['day_of_week'] == datetime.weekday()) &
             (points_in_buff['time_of_day_start'] <= datetime.hour+1) &
             (points_in_buff['time_of_day_start'] >= datetime.hour-1)]
@@ -79,22 +92,7 @@ def get_mean_interarrival_time(location, datetime, geodf, radius):
     return mean_interarrival_time
 
 
-def how_many_current_neighbors(location, current_geodf, radius):
-    '''
-    Finds all bikes within a given radius right now.
-
-    Inputs: location of interest(shapely Point),
-            current_geodf (current pull from the API, run through the featurization pipeline),
-            radius to search in (feet)
-    Output: number of current neighbor bikes
-    '''
-
-    buff = geopandas.GeoSeries(location).buffer(radius)
-    points_in_buff = current_geodf[current_geodf.intersects(buff.iloc[0])]
-    return len(points_in_buff)
-
-
-def predict_flow(departure_rate, arrival_rate, prediction_time):
+def predict_flow(one_point, radius, prediction_time, train_geodf_arrivals):
     '''
     Predicts flow of bikes that in/out of an area during a given time.
 
@@ -103,6 +101,20 @@ def predict_flow(departure_rate, arrival_rate, prediction_time):
             prediction_time (in hours, float)
     Output: net number of bikes at end of prediction time (float)
     '''
+
+
+    location = one_point['geolocation']
+    datetime = one_point['local_time_start']
+
+    scaler = pickle.load(open('scaler.p', "rb"))
+    X_now_raw = one_point[["lon", "lat", "time_of_day_start", "day_of_week"]]
+    X_now = scaler.transform([X_now_raw.astype(float)])
+
+    knn_model = pickle.load(open('knn_pickle.p', "rb"))
+
+    departure_rate = 1/get_knn_departure_time(knn_model, X_now)
+    arrival_rate = 1/get_mean_interarrival_time(location, datetime, train_geodf_arrivals, radius)
+
     arriving_bikes = arrival_rate * prediction_time
     departing_bikes = departure_rate * prediction_time
     predicted_flow = arriving_bikes - departing_bikes
@@ -111,7 +123,7 @@ def predict_flow(departure_rate, arrival_rate, prediction_time):
 
 
 '''
-    num_bikes_start = how_many_current_neighbors(location, current_geodf, radius)
+    num_bikes_start = len(find_bikes_in_an_area(location, current_geodf, radius))
     departure_rate = 1/get_knn_departure_time(knn_model, X_now) #need to scale X_now
     arrival_rate = 1/get_mean_interarrival_time(location, datetime, geodf, radius)
 '''
