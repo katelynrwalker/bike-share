@@ -55,6 +55,8 @@ def get_nearest_neighbor_bikes(location, datetime, geodf, radius):
 
 def get_mean_interarrival_time(location, datetime, geodf, radius):
     '''
+    DEPRECATED - this method is easily skewed by bikes arriving in clusters
+
     Finds the average time between bike arrivals within a given area (radius in feet)
     (based on same day of week within a 3 hour window).
 
@@ -92,13 +94,46 @@ def get_mean_interarrival_time(location, datetime, geodf, radius):
     return mean_interarrival_time
 
 
+def get_arrival_rate(location, datetime, geodf, radius):
+    '''
+    Finds the average bike arrivals within a given area (radius in feet) per hour
+    (based on same day of week within a 3 hour window).
+
+    Inputs: location of interest(shapely Point),
+            datetime of interest,
+            geopandas dataframe of historic bike info,
+            radius to search in (feet)
+    Output: average number of bike arrivals per hour
+    '''
+
+    neighbor_df = get_nearest_neighbor_bikes(location, datetime, geodf, radius)
+
+    arrivals = []
+    for date in neighbor_df['local_time_start'].dt.date.unique():
+        df = neighbor_df[neighbor_df['local_time_start'].dt.date == date]
+        arrivals.append(len(df))
+
+    if len(arrivals) == 0:
+        return 0
+
+    mean_arrival_rate = np.array(arrivals).mean()
+    return mean_arrival_rate
+
+
 def predict_flow(one_point, radius, prediction_time, train_geodf_arrivals):
     '''
     Predicts flow of bikes that in/out of an area during a given time.
 
-    Inputs: departure_rate (bikes per hour, float),
-            arrival_rate (bikes per hour, float),
+    Inputs: one_point (1 row geodf, a location to center the prediction around.
+                        Required fields: lat(float),
+                                         lon(float),
+                                         geolocation (Shapely point),
+                                         local_time_start (pandas datetime),
+                                         time_of_dat_start (int),
+                                         day_of_week (int))
+            radius (int or float. Prediction area)
             prediction_time (in hours, float)
+            train_geodf_arrivals (geodf of bike arrivals, training data)
     Output: net number of bikes at end of prediction time (float)
     '''
 
@@ -112,8 +147,8 @@ def predict_flow(one_point, radius, prediction_time, train_geodf_arrivals):
 
     knn_model = pickle.load(open('knn_pickle.p', "rb"))
 
-    departure_rate = 1/get_knn_departure_time(knn_model, X_now)
-    arrival_rate = 1/get_mean_interarrival_time(location, datetime, train_geodf_arrivals, radius)
+    departure_rate = float(1/get_knn_departure_time(knn_model, X_now))
+    arrival_rate = get_arrival_rate(location, datetime, train_geodf_arrivals, radius)
 
     arriving_bikes = arrival_rate * prediction_time
     departing_bikes = departure_rate * prediction_time
