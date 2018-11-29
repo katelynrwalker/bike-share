@@ -1,0 +1,1 @@
+These are alternative models that didn't perform as well on this bikeshare data as knn did. Preserving them here for posterity and in case they're ever useful in the future!
