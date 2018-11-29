@@ -103,7 +103,7 @@ def consolidate_missed_idle_bikes(idle_df):
     idle_df.loc[missing_idle, 'utc_time_end'] = idle_df.utc_time_end.shift(-1)
     drops = missing_idle.shift(1)
     drops.iloc[0] = False
-    idle_df = idle_df[~drops]
+    idle_df = idle_df[~drops].copy()
     idle_df['idle_time'] = idle_df['utc_time_end'] - idle_df['utc_time_start']
 
     #sometimes a mixup in the first/last times causes an idle_time to be negative.
@@ -324,3 +324,19 @@ def all_featurization_keep_recharges(filename):
     geodf = add_census_blockgroups(geodf)
 
     return geodf
+
+
+def featurization_for_knn(filename):
+    '''
+    Master function to run all of the dataframe processing in one command,
+    without the geospatial parts (faster processing for models that don't use
+    those features)
+    '''
+    raw_df = import_and_clean_data(filename)
+    idle_df = group_and_create_target(raw_df)
+    idle_df = drop_recharges(idle_df)
+    idle_df = consolidate_missed_idle_bikes(idle_df)
+    idle_df = add_more_time_and_date_info(idle_df)
+    idle_df = create_flags_from_bike_info(idle_df)
+
+    return idle_df
