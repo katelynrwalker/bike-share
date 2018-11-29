@@ -1,5 +1,8 @@
 *.csv
 .ipynb_checkpoints/
+.ipynb
+.DS_Store
+__pycache__
 archive_data/
 archive_notebooks_scripts/
 bike-data/
