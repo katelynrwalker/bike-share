@@ -330,7 +330,7 @@ def featurization_for_knn(filename):
     '''
     Master function to run all of the dataframe processing in one command,
     without the geospatial parts (faster processing for models that don't use
-    those features)
+    those features). Note this does not drop bikes that are outside the service area.
     '''
     raw_df = import_and_clean_data(filename)
     idle_df = group_and_create_target(raw_df)
