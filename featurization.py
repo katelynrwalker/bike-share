@@ -248,10 +248,10 @@ def add_census_blockgroups(geodf):
     '''
 
     # load census data into dataframes.
-    blockgroupdf = geopandas.read_file('ACS_2016_5YR_BG_06_CALIFORNIA.gdb',
+    blockgroupdf = geopandas.read_file('geospatial_data/ACS_2016_5YR_BG_06_CALIFORNIA.gdb',
                                         driver='FileGDB',
                                         layer='ACS_2016_5YR_BG_06_CALIFORNIA')
-    blockgroup_pop = geopandas.read_file('ACS_2016_5YR_BG_06_CALIFORNIA.gdb',
+    blockgroup_pop = geopandas.read_file('geospatial_data/ACS_2016_5YR_BG_06_CALIFORNIA.gdb',
                                         driver='FileGDB',
                                         layer='X00_COUNTS')
     blockgroup_pop.rename({'GEOID':'GEOID_Data'}, axis=1, inplace=True)
@@ -259,7 +259,7 @@ def add_census_blockgroups(geodf):
     #geopandas is not reading the crs from census files, and census metadata
     #does not include information on the crs. This is a workaround using a file
     #with a known crs.
-    blockgroup_shape = geopandas.read_file('tl_2016_06_bg')
+    blockgroup_shape = geopandas.read_file('geospatial_data/tl_2016_06_bg')
     blockgroup_shape.crs = {'init':'epsg:4269'}
     bg = blockgroup_shape.merge(blockgroupdf[['GEOID', 'Shape_Area', 'GEOID_Data']], on="GEOID")
 
@@ -302,7 +302,7 @@ def all_featurization(filename):
     idle_df = add_more_time_and_date_info(idle_df)
     idle_df = create_flags_from_bike_info(idle_df)
     geodf = add_geolocation(idle_df)
-    geodf = add_zoning(geodf, 'Zoning')
+    geodf = add_zoning(geodf, 'geospatial_data/Zoning')
     geodf = add_census_blockgroups(geodf)
 
     return geodf
@@ -320,7 +320,7 @@ def all_featurization_keep_recharges(filename):
     idle_df = add_more_time_and_date_info(idle_df)
     idle_df = create_flags_from_bike_info(idle_df)
     geodf = add_geolocation(idle_df)
-    geodf = add_zoning(geodf, 'Zoning')
+    geodf = add_zoning(geodf, 'geospatial_data/Zoning')
     geodf = add_census_blockgroups(geodf)
 
     return geodf

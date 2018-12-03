@@ -44,7 +44,7 @@ def add_blockgroup_geometry(df):
     Output: a geopandas dataframe
     '''
 
-    b = geopandas.read_file('tl_2016_06_bg')
+    b = geopandas.read_file('geospatial_data/tl_2016_06_bg')
     b.crs = {'init':'epsg:4269'}
     b.drop(['STATEFP', 'COUNTYFP', 'TRACTCE', 'BLKGRPCE', 'NAMELSAD',
        'MTFCC', 'FUNCSTAT', 'ALAND', 'AWATER', 'INTPTLAT', 'INTPTLON'], axis=1, inplace=True)
@@ -61,7 +61,7 @@ def add_blockgroup_geometry(df):
          'units': 'us-ft',
          'no_defs': True}, inplace=True)
 
-    city_limits = geopandas.read_file('City_Limits')
+    city_limits = geopandas.read_file('geospatial_data/City_Limits')
     city_limits.crs = {'init': 'epsg:4326'}
     city_limits.drop(['OBJECTID', 'City_Limit', 'CITY_DESC', 'City_for_M', 'SHAPESTAre',
        'SHAPESTLen'], axis=1, inplace=True)
