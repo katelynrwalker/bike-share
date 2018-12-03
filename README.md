@@ -23,7 +23,7 @@ My first attempts at modeling attempted to predict exact departure time based on
 
 Looking at the data more closely, I observed that the longest idle times appeared across all locations and parking times. Bike idle times turn out to be highly stochastic, making it very difficult to predict exact departure times. 
 
-Idle times may be stochastic, but they still follow a distribution - an exponential distribution, to be exact. This means that we can model bike idle time as a probability function. Observing bikes in a particular location, we see that 50% of them depart in the first hour, 70% in the first two hours, and so on. So when a new bike gets parked in that location, we can immediately say that bike has a 50% chance of leaving within an hour, 70% in two hours, and so on.
+Idle times may be stochastic, but they still follow a distribution - an exponential distribution, to be exact. This means that we can model bike idle time as a probability function. Observing bikes in a particular location, we might see that 50% of them depart in the first hour, 70% in the first two hours, and so on. So when a new bike gets parked in that location, we can immediately say that bike has a 50% chance of leaving within an hour, 70% in two hours, and so on.
 
 [Insert exponential plots]
 
@@ -31,14 +31,45 @@ Idle times may be stochastic, but they still follow a distribution - an exponent
 
 Whenever a bike is parked, the probability of that bike leaving after x hours can be immediately generated based on an exponential probability function. The exponential function is defined by a single parameter - beta - which is equal to both the rate of "decay" of departure time and also the expected value (mean) of departure time. This is really handy! It means that beta value for a particular bike can be estimated as the mean departure time of the previously observed "neighbors" (in both time and space) of that bike. 
 
+[insert probability curve here]
+
 The model_training.py script runs a grid search cross validation on a set of bike data and finds the best number of nearest neighbors and weighting function (uniform or declining). The k-nearest neighbors (KNN) model is then trained using these best parameters and pickled for future use.
 
 (As an aside, I also looked at a Bayesian updating technique for estimating the beta parameter. The code for that can be found in deprecated_models/model_bayesian.py. KNN outperformed this for a couple reasons. The Bayesian model also relies on neighbors to update a prior estimate of beta. But that prior estimate of beta will continue to influence the posterior estimate of beta, and I don't have any special knowledge that makes my prior beta estimate any better than looking at the neighbors alone. In addition to neighbors alone being a better predictor, it's also a simpler model that runs much faster than Bayesian updating.)
 
-
 ## So what can we do with probabilities of bike departures?
 
+Now every bike gets a probability model of its departure time as soon as it parks. But this still doesn't tell us what bikes are going to sit around for excessively long periods of time. We do know that some bikes are likely to sit for longer than others, but the model doesn't predict extremes, because those are due to random chance within a probabilistic model.
 
+A bike should be moved when we predict that the potential profit to be made by moving that bike to a better area exceeds the cost of moving that bike. For the purposes of this model, I'm making an assumption that a bike can make, on average, \$0.50 an hour. And that it costs \$5.00 to move it. This means that a bike should be moved if we expect it to sit for over 10 hours.
+
+The expected values from the probability models almost never reach ten hours. But we can look at the probability models and decide on some threshold probability at which we pull the trigger on moving a bike. Which probability should we choose? Working with probabilities, we're going to be wrong about moving the bike sometimes, and correct othertimes. At which threshold are we correct the most without being incorrect too many times? Let's try them all and see what makes us the most profit: 
+
+[insert profit curve here]
+
+Looks like if we have a 16% probability that a bike is going to sit for ten hours, we should move it to maximize profit.
+
+[insert confusion matrix here]
+
+## Another, even better, use case
+
+An even more interesting thing we can do with this probability model is detect bikes which have sat around for an unusually long amount of time. Once a bike exceeds the time at which it was 95% likely to depart, that means there is only a 1 in 20 chance that bike would still be there acorrding to the randomness of the universe - making it fairly likely at this point that there might be something wrong with it (broken, hidden in the bushes, etc.) and someone should be sent to go check on it!
+
+Looking at the numbers, a bike sits on average for 2.8 hours after being parked, and 50% of bikes leave in just 0.8 hours. Once a bike has exceeded it's 95% probability of departure, it sits on average for another 5.8 hours (in addition to the time it's already sat to get to this point!), or it takes another 4.7 hours for 50% of these bikes to leave. So it certainly seems like something is going on with these bikes making them less likely to be ridden!
+
+## Future expansions
+
+This probability model could also be used to help riders find the likelihood that a bike will be available to them some time period from now (say 30-60 minutes). The probability of departure of existing bikes could be combined with a rate of arrival of new bikes to create a probability that a bike will be available to you at some near point in the future.
+
+The profit model for finding probability threshholds could be improved in two ways. First, including an adjustment for demand would be more realistic - a bike has greater potential profit if it's moved to an area with current high demand as compared to if it's moved at a low demand time of day. Second, the availability of other nearby bikes should be taken into account. A low traffic area with three available bikes is a higher priority to relocate a bike than the same area with one available bike. In addition, a minimum service level should be set so that an area is not end up completely cleared of bikes.
 
 ## How to use this code
 
+If you'd like to collect your own bikeshare data from JUMP, perhaps for a different city and/or time period, run bike_requests.py for a week or more to get yourself a training set (I recommend doing this on an AWS EC2 server so you can turn your computer off!). Adjust the API web address in there for your city of interest. Once you've collected that data you can run it through model_training.py to train a knn model on it and save that model as a pickle. You will need to go into the beginning of that model_training code and change the filepath to your data. 
+
+If you just want to play with this and haven't collected your own data, no worries, the pickled model I used is saved in pickles/knn_pickle.p (and the scaler to bring all the data into a constant set of units is pickles/scaler.p).
+
+If you've collected your own data, feel free to change the file paths referenced in clean_EDA.ipynb to get some visuals on your data.
+
+[the code for this next part is still in the cost_model.ipynb notebook - need to clean it up for generalized use; the script/methods referenced below don't actually exist yet.]
+Once you have a trained model to play with, you'll also need some current data to try it out on. Run bike_requests.py again. After a minute, you can run the data through the cost_model.py/should_it_move method to see if any of your bikes get flagged as one that should be moved based on a probability of sitting for too long. If you've collected at least a few hours worth of new data, you can run it through cost_model.py/detect_broken method to see if any bikes get flagged as having sat for too long and should be checked out as being potentially broken or hidden.
