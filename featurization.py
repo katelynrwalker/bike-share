@@ -234,19 +234,16 @@ def add_zoning(geodf, zoning_file):
     return geodf_plus
 
 
-def add_census_blockgroups(geodf):
+def load_census_blockgroups():
     '''
-    Takes a geodataframe of bike idle events, and spatial joins that to census
-    blockgroup shapefiles so that each event has census population associated
-    with it. Returns a geopandas dataframe.
+    Creates a geodataframe of census blockgroups.
 
     For now the census files are hardcoded because they're statewide data, but
     they could be generalized if ever needed.
 
-    Input: geopandas dataframe (bike idle events, with geometry column)
-    Output: geopandas dataframe, with census (population) information for each idle event
+    Input: none
+    Output: geopandas dataframe, with census blockgroups and some key features from the census data
     '''
-
     # load census data into dataframes.
     blockgroupdf = geopandas.read_file('geospatial_data/ACS_2016_5YR_BG_06_CALIFORNIA.gdb',
                                         driver='FileGDB',
@@ -282,10 +279,28 @@ def add_census_blockgroups(geodf):
                             'datum': 'NAD83',
                             'units': 'us-ft',
                             'no_defs': True})
+    
+    return bg_features
+
+
+def add_census_blockgroups(geodf):
+    '''
+    Takes a geodataframe of bike idle events, and spatial joins that to census
+    blockgroup shapefiles so that each event has census population associated
+    with it. Returns a geopandas dataframe.
+
+    For now the census files are hardcoded because they're statewide data, but
+    they could be generalized if ever needed.
+
+    Input: geopandas dataframe (bike idle events, with geometry column)
+    Output: geopandas dataframe, with census (population) information for each idle event
+    '''
+
+    blockgroups = load_census_blockgroups()
 
     # spatial join blockgroup data to bike data (so each bike point gets the attributes
     # of the blockgroup it's in)
-    geodf = geopandas.sjoin(geodf, bg_features, how="left")
+    geodf = geopandas.sjoin(geodf, blockgroups, how="left")
     geodf.drop('index_right', axis=1, inplace=True)
 
     return geodf
