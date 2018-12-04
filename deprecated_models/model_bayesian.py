@@ -1,5 +1,5 @@
 '''
-This model estimates the beta parameter for the exponential rate of bike departures at a certain point (also the 
+This model estimates the beta parameter for the exponential rate of bike departures at a certain point (also the
 exponential probability at which a single bike is expedcted to leave). Interesting approach, but knn outperforms it.
 '''
 
@@ -45,7 +45,7 @@ def get_nearest_neighbor_bikes(one_bike, geodf):
     Output: list of the nearest neighbor bikes
     '''
 
-    one_point = one_bike['geolocation']
+    one_point = one_bike['geometry']
     buff = geopandas.GeoSeries(one_point).buffer(1000)
     points_in_buff = geodf[geodf.intersects(buff.iloc[0])]
     points = points_in_buff[(points_in_buff['day_of_week'] == one_bike['day_of_week']) &

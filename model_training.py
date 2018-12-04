@@ -11,7 +11,7 @@ import pickle
 
 if __name__ == '__main__':
     #read in training data
-    train_geodf = featurization.all_featurization("all-sc-bike-data-1101.csv")
+    train_geodf = featurization.featurization_for_knn("bike-data/all-sc-bike-data-1101.csv")
 
     train_raw = train_geodf.sort_values('utc_time_start', axis=0)
     X_raw = train_raw[["lon", "lat", "time_of_day_start", "day_of_week"]]

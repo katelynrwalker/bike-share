@@ -1,10 +1,10 @@
 '''
-This is code to predict flow of bikes in/out of an area (a user-defined radius around a user-defined point). 
+This is code to predict flow of bikes in/out of an area (a user-defined radius around a user-defined point).
 This would be useful to predict when an area is likely to run out of bikes or have too many bikes.
 
 The arrival rate, as written, performs worse than the mean. I believe this is due to clustering behavior of bikes
-(large groups of people arriving all at once, or someone locking and unlocking a bike multiple times to make sure 
-they did it correctly). This might be smoothed out with a longer time period of data, but for now this model 
+(large groups of people arriving all at once, or someone locking and unlocking a bike multiple times to make sure
+they did it correctly). This might be smoothed out with a longer time period of data, but for now this model
 does not perform well.
 '''
 
@@ -138,7 +138,7 @@ def predict_flow(one_point, radius, prediction_time, train_geodf_arrivals):
     Inputs: one_point (1 row geodf, a location to center the prediction around.
                         Required fields: lat(float),
                                          lon(float),
-                                         geolocation (Shapely point),
+                                         geometry (Shapely point),
                                          local_time_start (pandas datetime),
                                          time_of_dat_start (int),
                                          day_of_week (int))
@@ -149,7 +149,7 @@ def predict_flow(one_point, radius, prediction_time, train_geodf_arrivals):
     '''
 
 
-    location = one_point['geolocation']
+    location = one_point['geometry']
     datetime = one_point['local_time_start']
 
     scaler = pickle.load(open('scaler.p', "rb"))
