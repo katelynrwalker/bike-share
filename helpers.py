@@ -33,6 +33,34 @@ def map_bikes(ax, geodf, label_by=None, zoom=15, **kwargs):
     return ax
 
 
+def clip_to_city_limits(geodf, city_limits_filename):
+
+    city_limits = geopandas.read_file(city_limits_filename)
+    city_limits.crs = {'init': 'epsg:4326'}
+
+    #the Santa Cruz data includes city limits for every incorporated city in
+    #the county. This pulls out just Santa Cruz.
+    city_limits = city_limits[(city_limits.City_Limit == 'CITY-SC')
+                                & (city_limits.City_for_M == 'YES')]
+
+    city_limits.drop(['OBJECTID', 'City_Limit', 'CITY_DESC', 'City_for_M', 'SHAPESTAre',
+       'SHAPESTLen'], axis=1, inplace=True)
+    city_limits.to_crs(crs={'proj': 'lcc',
+         'lat_1': 37.06666666666667,
+         'lat_2': 38.43333333333333,
+         'lat_0': 36.5,
+         'lon_0': -120.5,
+         'x_0': 2000000,
+         'y_0': 500000.0000000002,
+         'datum': 'NAD83',
+         'units': 'us-ft',
+         'no_defs': True}, inplace=True)
+
+
+    geodf_clipped = geopandas.overlay(city_limits, geodf, how="intersection")
+
+    return geodf_clipped
+
 def add_blockgroup_geometry(df):
     '''
     Add GIS shapefile geometry of each blockgroup to a dataframe.
@@ -59,23 +87,8 @@ def add_blockgroup_geometry(df):
          'units': 'us-ft',
          'no_defs': True}, inplace=True)
 
-    city_limits = geopandas.read_file('geospatial_data/City_Limits')
-    city_limits.crs = {'init': 'epsg:4326'}
-    city_limits.drop(['OBJECTID', 'City_Limit', 'CITY_DESC', 'City_for_M', 'SHAPESTAre',
-       'SHAPESTLen'], axis=1, inplace=True)
-    city_limits.to_crs(crs={'proj': 'lcc',
-         'lat_1': 37.06666666666667,
-         'lat_2': 38.43333333333333,
-         'lat_0': 36.5,
-         'lon_0': -120.5,
-         'x_0': 2000000,
-         'y_0': 500000.0000000002,
-         'datum': 'NAD83',
-         'units': 'us-ft',
-         'no_defs': True}, inplace=True)
+    b_clip = clip_to_city_limits(b, 'geospatial_data/City_Limits')
 
-    b = geopandas.overlay(city_limits, b, how="intersection")
-
-    geodf = b.merge(df, how='inner', on="GEOID_Data")
+    geodf = b_clip.merge(df, how='inner', on="GEOID_Data")
 
     return geodf
