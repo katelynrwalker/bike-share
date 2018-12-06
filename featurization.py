@@ -199,6 +199,34 @@ def add_geolocation(idle_df):
     return geodf
 
 
+def load_zoning(zoning_file):
+    '''
+    Creates a geodataframe of city zoning.
+
+    Note right now this is built to work with Santa Cruz zoning shapefile. Other
+    cities likely have different fields/columns and function will need adjustment.
+
+    Input: zoning_file (string, path to zoning shapefile)
+    Output: geopandas dataframe, with city zoning, both original and
+    '''
+    zoningdf = geopandas.read_file(zoning_file)
+
+    zoningdf.drop(['OBJECTID', 'SHAPE_LENG', 'SHAPEarea', 'SHAPElen'], axis = 1, inplace=True)
+    #create generalized zones for easier interpretability
+    zoningdf['zoning_simp'] = zoningdf['ZONING'].str.slice(0,1)
+    zoningdf = zoningdf.replace(['R', 'C', 'P', 'O', 'F', 'I', 'E'], [
+                                'residential',
+                                'commercial',
+                                'public',
+                                'ocean',
+                                'floodplain',
+                                'industrial',
+                                'agricultural'])
+    zoningdf.loc[zoningdf['ZONING'] == 'PA', 'zoning_simp'] = 'office'
+
+    return zoningdf
+
+
 def add_zoning(geodf, zoning_file):
     '''
     Takes a geodataframe of bike idle events, and a shapefile with zoning information.
@@ -215,7 +243,7 @@ def add_zoning(geodf, zoning_file):
     Output: geopandas dataframe, with zone for each idle event
     '''
 
-    zoningdf = geopandas.read_file(zoning_file)
+
     geodf = geodf.to_crs(crs={'proj': 'lcc',
                             'lat_1': 37.06666666666667,
                             'lat_2': 38.43333333333333,
@@ -226,7 +254,9 @@ def add_zoning(geodf, zoning_file):
                             'datum': 'NAD83',
                             'units': 'us-ft',
                             'no_defs': True})
-    zoningdf.drop(['OBJECTID', 'SHAPE_LENG', 'SHAPEarea', 'SHAPElen'], axis = 1, inplace=True)
+
+    zoningdf = load_zoning(zoning_file)
+
     geodf_plus = geopandas.sjoin(geodf, zoningdf, how="inner", op='intersects')
     geodf_plus.fillna(value = 'out', inplace=True)
     geodf_plus.drop('index_right', axis=1, inplace=True)
@@ -263,11 +293,12 @@ def load_census_blockgroups():
     bg = bg.merge(blockgroup_pop, on='GEOID_Data')
 
     # calculate features of each blockgroup
+    bg['population'] = bg['B00001e1']
     bg['pop_density'] = bg['B00001e1']/bg['Shape_Area']
     bg['people_per_house'] = bg['B00001e1']/bg['B00002e1']
 
     #just pull out columns with features of interest and convert to the State Plane California crs
-    bg_features = bg[['GEOID_Data', 'geometry_x', 'pop_density', 'people_per_house']]
+    bg_features = bg[['GEOID_Data', 'geometry_x', 'population', 'pop_density', 'people_per_house']]
     bg_features = geopandas.GeoDataFrame(bg_features, geometry = 'geometry_x', crs={'init': 'epsg:4269'})
     bg_features = bg_features.to_crs(crs={'proj': 'lcc',
                             'lat_1': 37.06666666666667,
@@ -279,7 +310,7 @@ def load_census_blockgroups():
                             'datum': 'NAD83',
                             'units': 'us-ft',
                             'no_defs': True})
-    
+
     return bg_features
 
 

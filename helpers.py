@@ -56,7 +56,6 @@ def clip_to_city_limits(geodf, city_limits_filename):
          'units': 'us-ft',
          'no_defs': True}, inplace=True)
 
-
     geodf_clipped = geopandas.overlay(city_limits, geodf, how="intersection")
 
     return geodf_clipped
@@ -74,7 +73,7 @@ def add_blockgroup_geometry(df):
     b.crs = {'init':'epsg:4269'}
     b.drop(['STATEFP', 'COUNTYFP', 'TRACTCE', 'BLKGRPCE', 'NAMELSAD',
        'MTFCC', 'FUNCSTAT', 'ALAND', 'AWATER', 'INTPTLAT', 'INTPTLON'], axis=1, inplace=True)
-    blockgroupdf = geopandas.read_file('ACS_2016_5YR_BG_06_CALIFORNIA.gdb', driver='FileGDB', layer='ACS_2016_5YR_BG_06_CALIFORNIA')
+    blockgroupdf = geopandas.read_file('geospatial_data/ACS_2016_5YR_BG_06_CALIFORNIA.gdb', driver='FileGDB', layer='ACS_2016_5YR_BG_06_CALIFORNIA')
     b = b.merge(blockgroupdf[['GEOID', 'GEOID_Data']], on="GEOID")
     b.to_crs(crs={'proj': 'lcc',
          'lat_1': 37.06666666666667,
