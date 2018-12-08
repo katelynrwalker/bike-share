@@ -9,13 +9,13 @@ The goals of this project were to predict how long a bicycle is likely to sit id
 
 ## Data Pipeline
 
-Data was collected in real time from the JUMP API for Santa Cruz, CA (https://sc.jumpbikes.com/opendata/gbfs.json). This API is updated once a minute with real time data on the location and battery status of each bike available for rental. Bikes currently being rented disappear from the API. I collected a couple weeks worth of data using an Amazon EC2 server, and then aggregated them using a series of pandas transformations in the featurization.py code. This aggregation resulted in a data set where each row is a single "idle event" - a bike that is parked and then sits for some period of idle time before being rented or moved.
+Data was collected in real time from the [JUMP API for Santa Cruz, CA](https://sc.jumpbikes.com/opendata/gbfs.json). This API is updated once a minute with real time data on the location and battery status of each bike available for rental. Bikes currently being rented disappear from the API. I collected a couple weeks worth of data using an Amazon EC2 server, and then aggregated them using a series of pandas transformations in the featurization.py code. This aggregation resulted in a data set where each row is a single "idle event" - a bike that is parked and then sits for some period of idle time before being rented or moved.
 
 The featurization pipeline also adds a geospatial reference to each idle event, and then uses spatial joins to add city zoning and census information to each idle event. Spatial joins allowed me to add features to a point from data found in a GIS shapefile - a point which falls within a shapefile polygon is assigned the features of that polygon. These geospatial actions are accomplished using the geopandas package.
 
 ## Some General Observations
 
-The clean_EDA.ipynb notebook takes a first pass through the data at a high level - looking at general patterns and seeing what we can learn about bike shares in Santa Cruz before we get deep into number crunching and modeling. Take a look at that file to get an intial understanding of what's going on (with lots of pretty pictures!)
+The [clean_EDA.ipynb](https://github.com/katelynrwalker/bike-share/blob/master/clean_EDA.ipynb) notebook takes a first pass through the data at a high level - looking at general patterns and seeing what we can learn about bike shares in Santa Cruz before we get deep into number crunching and modeling. Take a look at that file to get an intial understanding of what's going on (with lots of pretty pictures!)
 
 ## Modeling
 
@@ -69,7 +69,7 @@ If you'd like to collect your own bikeshare data from JUMP, perhaps for a differ
 
 If you just want to play with this and haven't collected your own data, no worries, the pickled model I used is saved in pickles/knn_pickle.p (and the scaler to bring all the data into a constant set of units is pickles/scaler.p).
 
-If you've collected your own data, feel free to change the file paths referenced in clean_EDA.ipynb to get some visuals on your data.
+If you've collected your own data, feel free to change the file paths referenced in clean_EDA.ipynb to get some visuals on your data. Note that if you're looking at a city other than Santa Cruz, anything based on zoning won't work (you will need a zoning shapefile specific to your city of interest).
 
 [the code for this next part is still in the cost_model.ipynb notebook - need to clean it up for generalized use; the script/methods referenced below don't actually exist yet.]
-Once you have a trained model to play with, you'll also need some current data to try it out on. Run bike_requests.py again. After a minute, you can run the data through the cost_model.py/should_it_move method to see if any of your bikes get flagged as one that should be moved based on a probability of sitting for too long. If you've collected at least a few hours worth of new data, you can run it through cost_model.py/detect_broken method to see if any bikes get flagged as having sat for too long and should be checked out as being potentially broken or hidden.
+Once you have a trained model to play with, you'll also need some current data to try it out on. Run bike_requests.py again. After a minute, you can run the data through the model_predictions.py/should_it_move method to see if any of your bikes get flagged as one that should be moved based on a probability of sitting for too long. If you've collected at least a few hours worth of new data, you can run it through model_predictions.py/detect_broken method to see if any bikes get flagged as having sat for too long and should be checked out as being potentially broken or hidden.
