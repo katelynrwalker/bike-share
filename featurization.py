@@ -21,6 +21,11 @@ def import_and_clean_data(filename):
     raw.drop_duplicates(inplace = True)
 
     raw.drop(['is_disabled', 'is_reserved', 'update_time', 'name'], axis = 1, inplace = True)
+
+    #Drop rows with null values, but print how many are dropped in case it's a lot.
+    print("Dropping {} rows with null values from raw data, out of {} total".format(
+                raw.isna().sum().max(), len(raw)))
+    raw.dropna(axis=0, inplace=True)
     raw['jump_ebike_battery_level'] = raw['jump_ebike_battery_level'].str.strip('%').astype(int)
 
     raw['utc_time'] = pd.to_datetime(raw['datetime'], unit='s')
@@ -108,7 +113,7 @@ def consolidate_missed_idle_bikes(idle_df):
 
     #sometimes a mixup in the first/last times causes an idle_time to be negative.
     #Drop these, but print how many are dropped in case it's a lot.
-    print("Dropping {} entries where end time was before start time".format(
+    print("Dropping {} idle instances where end time was before start time".format(
                 sum(idle_df.idle_time < datetime.timedelta())
                 ))
     idle_df = idle_df[idle_df.idle_time > datetime.timedelta()]
@@ -153,6 +158,11 @@ def create_flags_from_bike_info(idle_df):
     same_bike_next = idle_df.bike_id == idle_df.bike_id.shift(-1)
     same_bike_prev = idle_df.bike_id == idle_df.bike_id.shift(1)
 
+    #flags instances that are the last recorded idle for that bike (this means
+    #the endpoint for this idle may just be the endpoint of the data, not the
+    #actual end of the idle)
+    idle_df['last_idle'] = idle_df.bike_id != idle_df.bike_id.shift(-1)
+
     #flags bikes that were charged at the end of this idle period
     #uses a threshold of 5% charge increase to avoid random battery fluctuations
     charge_change = -idle_df.batt_start.diff(periods=-1)
@@ -170,6 +180,10 @@ def create_flags_from_bike_info(idle_df):
     same_charge = idle_df.batt_end == idle_df.batt_start.shift(-1)
     idle_df['gets_pickedup_not_charged'] = (same_bike_next & same_charge)
 
+    #flags bike with a long "rental" period after this idle - might be getting repaired
+    long_rental = (idle_df.local_time_end - idle_df.local_time_start.shift(-1)) > pd.to_timedelta('4:00:00')
+    idle_df['gets_repaired'] = (same_bike_next & long_rental)
+
     #flags bikes that were charged during this idle period
     idle_df['in_charger'] = (idle_df.batt_end - idle_df.batt_start) > 5
 
@@ -179,6 +193,8 @@ def create_flags_from_bike_info(idle_df):
     idle_df['next_action'] = 'rented'
     idle_df.loc[idle_df['gets_pickedup_charged'], 'next_action'] = 'gets_pickedup_charged'
     idle_df.loc[idle_df['gets_pickedup_not_charged'], 'next_action'] = 'gets_relocated'
+    idle_df.loc[idle_df['last_idle'], 'next_action'] = 'last_idle'
+    idle_df.loc[idle_df['gets_repaired'], 'next_action'] = 'gets_repaired'
 
     return idle_df
 
